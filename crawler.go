@@ -6,11 +6,12 @@ import (
 	"log"
 	"fmt"
 	"github.com/nguyenvanduocit/myfive-crawler/interface"
-	"github.com/nguyenvanduocit/myfive-crawler/crawler"
-	"github.com/nguyenvanduocit/myfive-crawler/model/rss"
-	"time"
-	"github.com/nguyenvanduocit/myfive-crawler/model/site"
 	"github.com/nguyenvanduocit/myfive-service/config"
+	"github.com/mmcdole/gofeed"
+	"github.com/nguyenvanduocit/myfive-crawler/crawler/github"
+	"github.com/nguyenvanduocit/myfive-crawler/crawler/rss"
+	"github.com/nguyenvanduocit/myfive-crawler/crawler/medium"
+	"time"
 )
 
 type Crawler struct {
@@ -31,39 +32,32 @@ func NewCrawler(sbScheme string)(*Crawler){
 	}
 }
 
-func (crawler *Crawler)insertPost(post *RssModel.Item, siteId int, ch chan interface{}){
+func (crawler *Crawler)insertPost(post *gofeed.Item, siteId int)(error){
 
 	isExists, err := crawler.isPostExist(post, siteId)
 	if err != nil {
-		ch <- fmt.Errorf("Insert error: %s", err)
-		return
+		return fmt.Errorf("Insert error: %s", err)
 	}
 	if(isExists){
-		ch <- fmt.Errorf("Post exist: %s", post.Title)
-		return
+		return fmt.Errorf("Post exist: %s", post.Title)
+	}
+	insPost, err := crawler.db.Prepare("INSERT INTO `posts` (`site_id`, `title`, `url`, `order`) VALUES(?, ?, ?, ? )") // ? = placeholder
+	if err != nil {
+		return err
 	}
 
-	insPost, err := crawler.db.Prepare("INSERT INTO `posts` (site_id, title, url, pub_date) VALUES(?, ?, ?, ? )") // ? = placeholder
+	result, err:= insPost.Exec(siteId , post.Title, post.Link, time.Now().UnixNano())
 	if err != nil {
-		ch <- err
-		return
-	}
-	pubDate, err := time.Parse("Mon, _2 Jan 2006 15:04:05 +0000",post.PubDate)
-	result, err:= insPost.Exec(siteId , post.Title, post.Link, pubDate.Format("2006-01-02 15:04:05"))
-	if err != nil {
-		ch <- err
-		return
+		return err
 	}
 
 	if _,err := result.LastInsertId(); err != nil {
-		ch <- fmt.Errorf("Can not get post id: %s", err)
-		return
+		return  fmt.Errorf("Can not get post id: %s", err)
 	}
-	ch <- fmt.Sprintf("Insert success: %s", post.Title)
-	return
+	return nil
 }
 
-func (crawler *Crawler)isPostExist(post *RssModel.Item, siteId int)(bool, error){
+func (crawler *Crawler)isPostExist(post *gofeed.Item, siteId int)(bool, error){
 	checkStatement, err := crawler.db.Prepare("SELECT EXISTS(SELECT 1 FROM `posts` as `p` WHERE `p`.url = ?)") // ? = placeholder
 	if err != nil {
 		return false, err
@@ -90,54 +84,32 @@ func (crawler *Crawler)getSiteId(url string)(int, error){
 
 }
 
-func (crawler *Crawler)insertSite(site *SiteModel.Site)(int, error){
-	insSite, err := crawler.db.Prepare("INSERT INTO `sites` (url, title) VALUES(?, ? )") // ? = placeholder
-	if err != nil {
-		return -1, err
-	}
-	result, err := insSite.Exec(site.Link, site.Title)
-	if err != nil {
-		return -1, err
-	}
-	siteId, err := result.LastInsertId();
-	if err != nil {
-		return -1, err
-	}
-	return int(siteId), nil
-
-}
-
-func (crawler *Crawler)crawSite(url string, crawlerClient CrawlerInterface.Crawler, resultChan chan interface{}){
-	siteId, err := crawler.getSiteId(url)
-	if err != nil {
-		siteInfo, err := crawlerClient.GetSiteInfo()
-		if err != nil {
-			resultChan <- err
-			return
-		}
-		siteId, err = crawler.insertSite(siteInfo)
-		if err != nil {
-			resultChan <- err
-			return
-		}
-	}
-	posts, err := crawlerClient.GetTopFive()
+func (crawler *Crawler)crawSite(crawlerClient CrawlerInterface.Crawler, resultChan chan interface{}){
+	fmt.Println("Start parse: ", crawlerClient.GetIdentifyURL())
+	feed , err:= crawlerClient.Parse()
 	if err != nil {
 		resultChan <- err
 		return
 	}
 
-	postChan := make(chan interface{})
-
-	for _,post := range posts{
-		go crawler.insertPost(post, siteId, postChan)
-	}
-	totalPost := len(posts)
-	for i:=0; i<totalPost; i++ {
-		fmt.Println( <- postChan)
+	siteId, err := crawler.getSiteId(crawlerClient.GetIdentifyURL())
+	if err != nil {
+		resultChan <- err
+		return
 	}
 
-	resultChan <- fmt.Sprintf("Done: %s", url)
+	posts:= feed.Items[:5]
+
+	for i := len(posts)-1; i >= 0; i-- {
+		err := crawler.insertPost(posts[i], siteId)
+		if err != nil {
+			fmt.Println(err)
+		}else{
+			fmt.Println("Inserted: ", posts[i].Title)
+		}
+	}
+
+	resultChan <- fmt.Sprintf("Done: %s", crawlerClient.GetIdentifyURL())
 	return
 }
 
@@ -145,12 +117,37 @@ func (crawler *Crawler)Start(){
 
 	siteChan := make(chan interface{})
 
-	go crawler.crawSite("http://sitepoint.com", CrawlerInterface.Crawler(RssCrawler.NewCrawler("https://www.sitepoint.com/feed")), siteChan)
-	go crawler.crawSite("https://davidwalsh.name", CrawlerInterface.Crawler(RssCrawler.NewCrawler("https://davidwalsh.name/feed")), siteChan)
-	go crawler.crawSite("https://wptavern.com", CrawlerInterface.Crawler(RssCrawler.NewCrawler("https://wptavern.com/feed")), siteChan)
-	go crawler.crawSite("https://laptrinh.senviet.org", CrawlerInterface.Crawler(RssCrawler.NewCrawler("https://laptrinh.senviet.org/feed")), siteChan)
+	getSiteStatement, err := crawler.db.Prepare("SELECT c.`url`,  c.`crawler` FROM `sites` as c")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer getSiteStatement.Close()
 
-	for i := 0; i < 4; i++ {
+	rows, err := getSiteStatement.Query()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	chanCount := 0
+	for rows.Next() {
+		var url string;
+		var crawlerName string;
+		if err := rows.Scan(&url, &crawlerName); err != nil {
+			log.Fatal(err)
+		}
+		switch crawlerName {
+		case "rss":
+			chanCount++
+			go crawler.crawSite(CrawlerInterface.Crawler(RssCrawler.NewCrawler(url)), siteChan)
+		case "github":
+			chanCount++
+			go crawler.crawSite(CrawlerInterface.Crawler(Github.NewCrawler(url)), siteChan)
+		case "medium":
+			chanCount++
+			go crawler.crawSite(CrawlerInterface.Crawler(Medium.NewCrawler(url)), siteChan)
+		}
+	}
+	for i := 0; i < chanCount; i++ {
 		fmt.Println(<-siteChan)
 	}
 }

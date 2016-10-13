@@ -101,7 +101,7 @@ func (sv *Server)SendResponse(w http.ResponseWriter, r *http.Request, response *
 func (sv *Server)getSites()([]*database.Site, error){
 	db := sv.DbFactory.NewConnect()
 	defer db.Close()
-	getSiteStatement, err := db.Prepare("SELECT c.`id`, c.`url`,  c.`title`, c.`lastupdated` FROM `sites` as c")
+	getSiteStatement, err := db.Prepare("SELECT c.`id`, c.`url`,  c.`title` FROM `sites` as c")
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (sv *Server)getSites()([]*database.Site, error){
 	var sites []*database.Site
 	for rows.Next() {
 		var site database.Site;
-		if err := rows.Scan(&site.Id, &site.Url, &site.Title, &site.LastUpdated); err != nil {
+		if err := rows.Scan(&site.Id, &site.Url, &site.Title); err != nil {
 			return nil, err
 		}
 		site.Posts, _ = sv.getPosts(site.Id)
@@ -129,7 +129,7 @@ func (sv *Server)getSites()([]*database.Site, error){
 func (sv *Server)getPosts(siteId int)([]*database.Post, error){
 	db := sv.DbFactory.NewConnect()
 	defer db.Close()
-	getPostsStatement, err := db.Prepare("SELECT `p`.`id`, `p`.`title`, `p`.`url` FROM `posts` as `p` WHERE `p`.site_id = ? ORDER BY `p`.`pub_date` DESC LIMIT 0,5")
+	getPostsStatement, err := db.Prepare("SELECT `p`.`id`, `p`.`title`, `p`.`url` FROM `posts` as `p` WHERE `p`.site_id = ? ORDER BY `p`.`order` DESC LIMIT 0,5")
 	if err != nil {
 		return nil, err
 	}
