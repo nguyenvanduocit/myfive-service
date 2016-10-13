@@ -5,11 +5,10 @@ import (
 	"database/sql"
 	"os"
 	"encoding/json"
-	"io/ioutil"
 	"fmt"
 	"github.com/joho/godotenv"
 	"log"
-	"github.com/nguyenvanduocit/myfive-service/server"
+	"github.com/nguyenvanduocit/myfive-service/database"
 )
 
 type Installer struct {
@@ -30,7 +29,7 @@ func NewInstaller(dbScheme string)(*Installer){
 	}
 }
 
-func (installer *Installer)importPosts(siteId int64, posts []*server.Post){
+func (installer *Installer)importPosts(siteId int64, posts []*database.Post){
 	insPost, err := installer.db.Prepare("INSERT INTO `posts` (site_id, title, url) VALUES(?, ?, ? )") // ? = placeholder
 	if err != nil {
 		panic(err.Error())
@@ -55,7 +54,7 @@ func (installer *Installer)ImportSite(fileName string){
 		panic(err.Error())
 	}
 	defer siteFile.Close()
-	var site server.Site
+	var site database.Site
 	jsonParser := json.NewDecoder(siteFile)
 	err = jsonParser.Decode(&site);
 	if err != nil {
@@ -110,10 +109,4 @@ func main() {
 
 	installer.CreateTable("sites", "CREATE TABLE `sites` ( `id` int(11) unsigned NOT NULL AUTO_INCREMENT, `title` varchar(255) DEFAULT NULL, `url` varchar(255) DEFAULT NULL, `lastupdated` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8;")
 	installer.CreateTable("posts", "CREATE TABLE `posts` ( `id` int(11) unsigned NOT NULL AUTO_INCREMENT, `site_id` int(11) unsigned, `title` text,`url` varchar(255) DEFAULT NULL, `pub_date` timestamp DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`id`), FOREIGN KEY (site_id) REFERENCES sites(id) ) ENGINE=InnoDB AUTO_INCREMENT=424 DEFAULT CHARSET=utf8;")
-
-	siteFiles, _ := ioutil.ReadDir("./data")
-	for _, f := range siteFiles {
-		fmt.Println("Import : " + f.Name())
-		installer.ImportSite(f.Name())
-	}
 }

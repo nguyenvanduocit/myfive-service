@@ -1,4 +1,4 @@
-package server
+package database
 
 type Post struct {
 	Id int `json:"id"`

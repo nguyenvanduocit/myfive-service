@@ -4,14 +4,13 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"database/sql"
 	"log"
-	"os"
-	"github.com/joho/godotenv"
 	"fmt"
 	"github.com/nguyenvanduocit/myfive-crawler/interface"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler"
 	"github.com/nguyenvanduocit/myfive-crawler/model/rss"
 	"time"
 	"github.com/nguyenvanduocit/myfive-crawler/model/site"
+	"github.com/nguyenvanduocit/myfive-service/config"
 )
 
 type Crawler struct {
@@ -49,8 +48,8 @@ func (crawler *Crawler)insertPost(post *RssModel.Item, siteId int, ch chan inter
 		ch <- err
 		return
 	}
-	time, err := time.Parse("Mon, _2 Jan 2006 15:04:05 +0000",post.PubDate)
-	result, err:= insPost.Exec(siteId , post.Title, post.Link, time.Format("2006-01-02 15:04:05"))
+	pubDate, err := time.Parse("Mon, _2 Jan 2006 15:04:05 +0000",post.PubDate)
+	result, err:= insPost.Exec(siteId , post.Title, post.Link, pubDate.Format("2006-01-02 15:04:05"))
 	if err != nil {
 		ch <- err
 		return
@@ -161,13 +160,11 @@ func (crawler *Crawler)Done(){
 }
 
 func main() {
-	err := godotenv.Load()
+	configData, err := config.LoadConfig("./.env")
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Fatal(err)
 	}
-
-	dbScheme := os.Getenv("db-scheme")
-
+	dbScheme := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", configData.DatabaseUserName, configData.DatabasePassword, configData.DatabaseHost, configData.DatabasePort, configData.DatabaseName)
 	crawler := NewCrawler(dbScheme)
 	defer crawler.Done()
 	crawler.Start()
