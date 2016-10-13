@@ -12,6 +12,7 @@ import (
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/rss"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/medium"
 	"time"
+	"github.com/nguyenvanduocit/myfive-crawler/crawler/producthunt"
 )
 
 type Crawler struct {
@@ -145,6 +146,9 @@ func (crawler *Crawler)Start(){
 		case "medium":
 			chanCount++
 			go crawler.crawSite(CrawlerInterface.Crawler(Medium.NewCrawler(url)), siteChan)
+		case "producthunt":
+			chanCount++
+			go crawler.crawSite(CrawlerInterface.Crawler(Producthunt.NewCrawler(url)), siteChan)
 		}
 	}
 	for i := 0; i < chanCount; i++ {
