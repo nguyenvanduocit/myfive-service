@@ -139,16 +139,16 @@ func (crawler *Crawler)Start(){
 		switch crawlerName {
 		case "rss":
 			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(RssCrawler.NewCrawler(url)), siteChan)
+			go crawler.crawSite(CrawlerInterface.Crawler(rss.NewCrawler(url)), siteChan)
 		case "github":
 			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(Github.NewCrawler(url)), siteChan)
+			go crawler.crawSite(CrawlerInterface.Crawler(github.NewCrawler(url)), siteChan)
 		case "medium":
 			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(Medium.NewCrawler(url)), siteChan)
+			go crawler.crawSite(CrawlerInterface.Crawler(medium.NewCrawler(url)), siteChan)
 		case "producthunt":
 			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(Producthunt.NewCrawler(url)), siteChan)
+			go crawler.crawSite(CrawlerInterface.Crawler(producthunt.NewCrawler(url)), siteChan)
 		}
 	}
 	for i := 0; i < chanCount; i++ {
