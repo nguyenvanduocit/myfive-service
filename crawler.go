@@ -99,8 +99,12 @@ func (crawler *Crawler)crawSite(crawlerClient CrawlerInterface.Crawler, resultCh
 		resultChan <- err
 		return
 	}
+	endSlide := 5
+	if(len(feed.Items) < 5){
+		endSlide = len(feed.Items)
+	}
 
-	posts:= feed.Items[:5]
+	posts:= feed.Items[:endSlide]
 
 	for i := len(posts)-1; i >= 0; i-- {
 		err := crawler.insertPost(posts[i], siteId)
