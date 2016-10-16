@@ -13,6 +13,7 @@ import (
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/medium"
 	"time"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/producthunt"
+	"github.com/nguyenvanduocit/myfive-crawler/crawler/oxfordlearnersdictionaries"
 )
 
 type Crawler struct {
@@ -149,6 +150,9 @@ func (crawler *Crawler)Start(){
 		case "producthunt":
 			chanCount++
 			go crawler.crawSite(CrawlerInterface.Crawler(producthunt.NewCrawler(url)), siteChan)
+		case "oxfordlearnersdictionaries":
+			chanCount++
+			go crawler.crawSite(CrawlerInterface.Crawler(oxfordlearnersdictionaries.NewCrawler(url)), siteChan)
 		}
 	}
 	for i := 0; i < chanCount; i++ {
