@@ -153,7 +153,6 @@ func (sv *Server)getPosts(siteId int)([]*database.Post, error){
 
 // Main function
 
-
 func main() {
 	// UP
 	configData, err := config.LoadConfig("./.env")
