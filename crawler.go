@@ -11,9 +11,9 @@ import (
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/github"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/rss"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/medium"
-	"time"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/producthunt"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/oxfordlearnersdictionaries"
+	"time"
 )
 
 type Crawler struct {
@@ -43,12 +43,11 @@ func (crawler *Crawler)insertPost(post *gofeed.Item, siteId int)(error){
 	if(isExists){
 		return fmt.Errorf("Post exist: %s", post.Title)
 	}
-	insPost, err := crawler.db.Prepare("INSERT INTO `posts` (`site_id`, `title`, `url`, `order`) VALUES(?, ?, ?, ? )") // ? = placeholder
+	insPost, err := crawler.db.Prepare("INSERT INTO `posts` (`site_id`, `title`, `url`, `published`) VALUES(?, ?, ?, ? )") // ? = placeholder
 	if err != nil {
 		return err
 	}
-
-	result, err:= insPost.Exec(siteId , post.Title, post.Link, time.Now().UnixNano())
+	result, err:= insPost.Exec(siteId , post.Title, post.Link, time.Now())
 	if err != nil {
 		return err
 	}
@@ -69,11 +68,10 @@ func (crawler *Crawler)isPostExist(post *gofeed.Item, siteId int)(bool, error){
 		return false, err
 	}
 	return exists, nil
-
 }
 
 func (crawler *Crawler)getSiteId(url string)(int, error){
-	insertStatement, err := crawler.db.Prepare("SELECT `s`.`id` FROM `sites` as `s` WHERE `s`.url = ?") // ? = placeholder
+	insertStatement, err := crawler.db.Prepare("SELECT `s`.`id` FROM `sites` as `s` WHERE `s`.feed_url = ?") // ? = placeholder
 	if err != nil {
 		return -1, err
 	}
@@ -86,15 +84,9 @@ func (crawler *Crawler)getSiteId(url string)(int, error){
 
 }
 
-func (crawler *Crawler)crawSite(crawlerClient CrawlerInterface.Crawler, resultChan chan interface{}){
+func (crawler *Crawler)crawSite(siteId int, crawlerClient CrawlerInterface.Crawler, resultChan chan interface{}){
 	fmt.Println("Start parse: ", crawlerClient.GetIdentifyURL())
 	feed , err:= crawlerClient.Parse()
-	if err != nil {
-		resultChan <- err
-		return
-	}
-
-	siteId, err := crawler.getSiteId(crawlerClient.GetIdentifyURL())
 	if err != nil {
 		resultChan <- err
 		return
@@ -123,7 +115,7 @@ func (crawler *Crawler)Start(){
 
 	siteChan := make(chan interface{})
 
-	getSiteStatement, err := crawler.db.Prepare("SELECT c.`url`,  c.`crawler` FROM `sites` as c")
+	getSiteStatement, err := crawler.db.Prepare("SELECT c.`id`, c.`feed_url`,  c.`crawler` FROM `sites` as c")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -137,26 +129,27 @@ func (crawler *Crawler)Start(){
 	chanCount := 0
 	for rows.Next() {
 		var url string;
+		var siteId int;
 		var crawlerName string;
-		if err := rows.Scan(&url, &crawlerName); err != nil {
+		if err := rows.Scan(&siteId, &url, &crawlerName); err != nil {
 			log.Fatal(err)
 		}
 		switch crawlerName {
-		case "rss":
-			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(rss.NewCrawler(url)), siteChan)
-		case "github":
-			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(github.NewCrawler(url)), siteChan)
-		case "medium":
-			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(medium.NewCrawler(url)), siteChan)
-		case "producthunt":
-			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(producthunt.NewCrawler(url)), siteChan)
-		case "oxfordlearnersdictionaries":
-			chanCount++
-			go crawler.crawSite(CrawlerInterface.Crawler(oxfordlearnersdictionaries.NewCrawler(url)), siteChan)
+			case "rss":
+				chanCount++
+				go crawler.crawSite(siteId, CrawlerInterface.Crawler(rss.NewCrawler(url)), siteChan)
+			case "github":
+				chanCount++
+				go crawler.crawSite(siteId, CrawlerInterface.Crawler(github.NewCrawler(url)), siteChan)
+			case "medium":
+				chanCount++
+				go crawler.crawSite(siteId, CrawlerInterface.Crawler(medium.NewCrawler(url)), siteChan)
+			case "producthunt":
+				chanCount++
+				go crawler.crawSite(siteId, CrawlerInterface.Crawler(producthunt.NewCrawler(url)), siteChan)
+			case "oxfordlearnersdictionaries":
+				chanCount++
+				go crawler.crawSite(siteId, CrawlerInterface.Crawler(oxfordlearnersdictionaries.NewCrawler(url)), siteChan)
 		}
 	}
 	for i := 0; i < chanCount; i++ {

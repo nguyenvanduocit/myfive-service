@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"github.com/NYTimes/gziphandler"
 	"log"
-	"encoding/json"
 	"html/template"
 	"golang.org/x/net/http2"
 
 	"github.com/nguyenvanduocit/myfive-service/config"
 	"github.com/nguyenvanduocit/myfive-service/database"
+	"github.com/google/jsonapi"
 )
 
 type Server struct{
@@ -41,7 +41,7 @@ func (sv *Server)Listing(){
 	fmt.Println("Server is listen on ", sv.Config.Address);
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.HandleFunc("/api/v1/news", sv.HandleGetSites)
+	router.HandleFunc("/api/v1/sites", sv.HandleGetSites)
 	router.HandleFunc("/", sv.Index)
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("view/static"))))
 	gzipWrapper := gziphandler.GzipHandler(router)
@@ -54,8 +54,7 @@ func (sv *Server)Listing(){
 	log.Panic(srv.ListenAndServe())
 }
 
-// Handler functions
-
+// Handle index request
 func (sv *Server)Index(w http.ResponseWriter, r *http.Request){
 	templates, err := template.ParseFiles( "./view/index.html" );
 	if err != nil {
@@ -68,40 +67,24 @@ func (sv *Server)Index(w http.ResponseWriter, r *http.Request){
 	}
 }
 
+// Handle get Sites
 func (sv *Server)HandleGetSites(w http.ResponseWriter, r *http.Request){
-	response := &database.Response{
-		Success:false,
-		Message:"Unknown error!",
-	}
+	w.Header().Set("Content-Type", jsonapi.MediaType)
 	sites, err := sv.getSites()
-	if (err != nil) {
-		response.Message = err.Error()
-	}else{
-		response.Message= "Success"
-		response.Success = true
-		response.Result = sites
-		response.Count = len(sites)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	sv.SendResponse(w, r, response)
-	return
+
+	if err := jsonapi.MarshalManyPayload(w, sites); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
-
-// Until functions
-
-func (sv *Server)SendResponse(w http.ResponseWriter, r *http.Request, response *database.Response) {
-	w.Header().Add("Content-Type", "application/json; charset=utf-8")
-	w.Header().Add("Access-Control-Allow-Origin", "*")
-	w.Header().Add("Cache-Control", "private; max-age=86400")
-	json.NewEncoder(w).Encode(response)
-	return
-}
-
-// Repository functions
 
 func (sv *Server)getSites()([]*database.Site, error){
 	db := sv.DbFactory.NewConnect()
 	defer db.Close()
-	getSiteStatement, err := db.Prepare("SELECT c.`id`, c.`url`,  c.`title` FROM `sites` as c")
+	getSiteStatement, err := db.Prepare("SELECT c.`id`, c.`url`, c.`icon`,  c.`title` FROM `sites` as c")
 	if err != nil {
 		return nil, err
 	}
@@ -116,39 +99,39 @@ func (sv *Server)getSites()([]*database.Site, error){
 	var sites []*database.Site
 	for rows.Next() {
 		var site database.Site;
-		if err := rows.Scan(&site.Id, &site.Url, &site.Title); err != nil {
+		if err := rows.Scan(&site.Id, &site.Url, &site.Icon, &site.Title); err != nil {
 			return nil, err
 		}
-		site.Posts, _ = sv.getPosts(site.Id)
+		site.Posts, _ = sv.getNewsList(site.Id)
 		sites = append(sites, &site);
 	}
 	return sites, nil
 
 }
 
-func (sv *Server)getPosts(siteId int)([]*database.Post, error){
+func (sv *Server)getNewsList(siteId int)([]*database.News, error){
 	db := sv.DbFactory.NewConnect()
 	defer db.Close()
-	getPostsStatement, err := db.Prepare("SELECT `p`.`id`, `p`.`title`, `p`.`url` FROM `posts` as `p` WHERE `p`.site_id = ? ORDER BY `p`.`order` DESC LIMIT 0,5")
+	getNewsListStatement, err := db.Prepare("SELECT `p`.`id`, `p`.`title`, `p`.`url` FROM `posts` as `p` WHERE `p`.site_id = ? ORDER BY `p`.`id` DESC LIMIT 0,5")
 	if err != nil {
 		return nil, err
 	}
-	defer getPostsStatement.Close()
-	rows, err := getPostsStatement.Query(siteId)
+	defer getNewsListStatement.Close()
+	rows, err := getNewsListStatement.Query(siteId)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var posts []*database.Post
+	var newsList []*database.News
 	for rows.Next() {
-		var post database.Post;
-		if err := rows.Scan(&post.Id, &post.Title, &post.Url); err != nil {
+		var news database.News;
+		if err := rows.Scan(&news.Id, &news.Title, &news.Url); err != nil {
 			return nil, err
 		}
-		posts = append(posts, &post);
+		newsList = append(newsList, &news);
 	}
-	return posts, nil
+	return newsList, nil
 }
 
 // Main function
@@ -160,6 +143,6 @@ func main() {
 		log.Fatal(err)
 	}
 	sv := NewServer(configData);
-	sv.Listing();
 	defer sv.Stop();
+	sv.Listing();
 }
