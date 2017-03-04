@@ -121,11 +121,12 @@ func (sv *Server)HandlePickNews(w http.ResponseWriter, r *http.Request){
 		w.Write([]byte(fmt.Sprintf("Can not insert pick: %s", err.Error())))
 		return
 	}
-	if _,err := result.LastInsertId(); err != nil {
+	newsId,err := result.LastInsertId()
+	if err != nil {
 		w.Write([]byte(fmt.Sprintf("Can not get post id: %s", err.Error())))
 		return
 	}
-	w.Write([]byte(fmt.Sprintf("News picked: %s", title)))
+	w.Write([]byte(fmt.Sprintf("News picked #%d: %s", newsId, title)))
 }
 
 func (sv *Server)HandleGetPickedNews(w http.ResponseWriter, r *http.Request){
