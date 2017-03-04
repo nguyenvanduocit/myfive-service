@@ -98,7 +98,7 @@ func (sv *Server)HandleGetSites(w http.ResponseWriter, r *http.Request){
 func (sv *Server)getPickedNews()([]*database.News, error){
 	db := sv.DbFactory.NewConnect()
 	defer db.Close()
-	getPickedNewstatement, err := db.Prepare("SELECT c.`id`, c.`title`, c.`url` FROM `picked_news` as c")
+	getPickedNewstatement, err := db.Prepare("SELECT c.`id`, c.`title`, c.`url` FROM `picked_news` as c ORDER BY `c`.`id` DESC LIMIT 0,5")
 	if err != nil {
 		return nil, err
 	}
