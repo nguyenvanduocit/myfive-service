@@ -14,6 +14,7 @@ type Config struct {
 	DatabaseUserName string
 	DatabasePassword string
 	Address string
+	SlackToken string
 }
 
 func LoadConfig(filePath string)(*Config, error){
@@ -31,6 +32,7 @@ func LoadConfig(filePath string)(*Config, error){
 		DatabaseUserName: os.Getenv("DATABASE_USERNAME"),
 		DatabasePassword: os.Getenv("DATABASE_PASSWORD"),
 		Address: os.Getenv("ADDRESS"),
+		SlackToken: os.Getenv("SLACK_TOKEN"),
 		DatabasePort:port,
 	}
 	return config, nil

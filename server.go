@@ -13,6 +13,8 @@ import (
 	"github.com/nguyenvanduocit/myfive-service/config"
 	"github.com/nguyenvanduocit/myfive-service/database"
 	"github.com/google/jsonapi"
+	"github.com/PuerkitoBio/goquery"
+	"strings"
 )
 
 type Server struct{
@@ -41,8 +43,9 @@ func (sv *Server)Listing(){
 	fmt.Println("Server is listen on ", sv.Config.Address);
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.HandleFunc("/api/v1/sites", sv.HandleGetSites)
-	router.HandleFunc("/api/v1/picked_news", sv.HandleGetPickedNews)
+	router.HandleFunc("/api/v1/sites", sv.HandleGetSites) // Get all Sites and it's posts
+	router.HandleFunc("/api/v1/picked_news", sv.HandleGetPickedNews) // Get 5 picks by developer
+	router.HandleFunc("/api/v1/pick_news", sv.HandlePickNews) // Handle post new pick
 	router.HandleFunc("/", sv.Index)
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("view/static"))))
 	gzipWrapper := gziphandler.GzipHandler(router)
@@ -66,6 +69,63 @@ func (sv *Server)Index(w http.ResponseWriter, r *http.Request){
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (sv *Server)HandlePickNews(w http.ResponseWriter, r *http.Request){
+	w.WriteHeader(200)
+	if err := r.ParseForm(); err != nil {
+		w.Write([]byte("Can not ParseForm"))
+		return;
+	}
+	requestToken := r.PostFormValue("token")
+	if requestToken != sv.Config.SlackToken {
+		w.Write([]byte("Invalid token."))
+		return
+	}
+	url := r.PostFormValue("text")
+
+	db := sv.DbFactory.NewConnect()
+	defer db.Close()
+
+	checkStatement, err := db.Prepare("SELECT EXISTS(SELECT 1 FROM `picked_news` as `p` WHERE `p`.url = ?)") // ? = placeholder
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf("Can not prepare checkStatement: %s", err.Error())))
+		return
+	}
+	var exists bool
+	if err := checkStatement.QueryRow(url).Scan(&exists); err != nil {
+		w.Write([]byte(fmt.Sprintf("Can not run checkStatement: %s", err.Error())))
+		return
+	}
+
+	if exists == true {
+		w.Write([]byte(fmt.Sprintf("Post exists: %s", url)))
+		return
+	}
+
+	doc, err := goquery.NewDocument(url)
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf("Can not NewDocument: %s", err.Error())))
+		return
+	}
+	title := strings.TrimSpace(doc.Find("title").Text())
+
+	insPost, err := db.Prepare("INSERT INTO `picked_news` (`title`, `url`) VALUES(?, ?)") // ? = placeholder
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf("Can not prepare instPost: %s", err.Error())))
+		return
+	}
+
+	result, err:= insPost.Exec(title, url)
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf("Can not insert pick: %s", err.Error())))
+		return
+	}
+	if _,err := result.LastInsertId(); err != nil {
+		w.Write([]byte(fmt.Sprintf("Can not get post id: %s", err.Error())))
+		return
+	}
+	w.Write([]byte(fmt.Sprintf("News picked: %s", title)))
 }
 
 func (sv *Server)HandleGetPickedNews(w http.ResponseWriter, r *http.Request){
@@ -98,12 +158,12 @@ func (sv *Server)HandleGetSites(w http.ResponseWriter, r *http.Request){
 func (sv *Server)getPickedNews()([]*database.News, error){
 	db := sv.DbFactory.NewConnect()
 	defer db.Close()
-	getPickedNewstatement, err := db.Prepare("SELECT c.`id`, c.`title`, c.`url` FROM `picked_news` as c ORDER BY `c`.`id` DESC LIMIT 0,5")
+	getPickedNewsStatement, err := db.Prepare("SELECT c.`id`, c.`title`, c.`url` FROM `picked_news` as c ORDER BY `c`.`id` DESC LIMIT 0,5")
 	if err != nil {
 		return nil, err
 	}
-	defer getPickedNewstatement.Close()
-	rows, err := getPickedNewstatement.Query()
+	defer getPickedNewsStatement.Close()
+	rows, err := getPickedNewsStatement.Query()
 	if err != nil {
 		return nil, err
 	}
