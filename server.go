@@ -42,6 +42,7 @@ func (sv *Server)Listing(){
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.HandleFunc("/api/v1/sites", sv.HandleGetSites)
+	router.HandleFunc("/api/v1/picked_news", sv.HandleGetPickedNews)
 	router.HandleFunc("/", sv.Index)
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("view/static"))))
 	gzipWrapper := gziphandler.GzipHandler(router)
@@ -67,6 +68,19 @@ func (sv *Server)Index(w http.ResponseWriter, r *http.Request){
 	}
 }
 
+func (sv *Server)HandleGetPickedNews(w http.ResponseWriter, r *http.Request){
+	w.Header().Set("Content-Type", jsonapi.MediaType)
+	news, err := sv.getPickedNews()
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	if err := jsonapi.MarshalManyPayload(w, news); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // Handle get Sites
 func (sv *Server)HandleGetSites(w http.ResponseWriter, r *http.Request){
 	w.Header().Set("Content-Type", jsonapi.MediaType)
@@ -79,6 +93,30 @@ func (sv *Server)HandleGetSites(w http.ResponseWriter, r *http.Request){
 	if err := jsonapi.MarshalManyPayload(w, sites); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (sv *Server)getPickedNews()([]*database.News, error){
+	db := sv.DbFactory.NewConnect()
+	defer db.Close()
+	getPickedNewstatement, err := db.Prepare("SELECT c.`id`, c.`title`, c.`url` FROM `picked_news` as c")
+	if err != nil {
+		return nil, err
+	}
+	defer getPickedNewstatement.Close()
+	rows, err := getPickedNewstatement.Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var newsList []*database.News
+	for rows.Next() {
+		var news database.News;
+		if err := rows.Scan(&news.Id, &news.Title, &news.Url); err != nil {
+			return nil, err
+		}
+		newsList = append(newsList, &news);
+	}
+	return newsList, nil
 }
 
 func (sv *Server)getSites()([]*database.Site, error){

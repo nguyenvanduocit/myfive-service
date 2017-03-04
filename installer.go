@@ -56,5 +56,6 @@ func main() {
 	defer installer.Done()
 
 	installer.CreateTable("sites", "CREATE TABLE `sites` ( `id` int(11) unsigned NOT NULL AUTO_INCREMENT, `title` varchar(255) DEFAULT NULL, `url` varchar(255) DEFAULT NULL, `feed_url` varchar(255) DEFAULT NULL, `icon` varchar(255) DEFAULT NULL, `crawler` varchar(255) DEFAULT 'rss', PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8;")
-	installer.CreateTable("posts", "CREATE TABLE `posts` ( `id` int(11) unsigned NOT NULL AUTO_INCREMENT, `site_id` int(11) unsigned, `title` text,`url` varchar(255) DEFAULT NULL, `published` datetime, PRIMARY KEY (`id`), FOREIGN KEY (site_id) REFERENCES sites(id) ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;")
+	installer.CreateTable("posts", "CREATE TABLE `posts` ( `id` int(11) unsigned NOT NULL AUTO_INCREMENT, `site_id` int(11) unsigned, `title` varchar(255),`url` varchar(255) DEFAULT NULL, `published` datetime, PRIMARY KEY (`id`), FOREIGN KEY (site_id) REFERENCES sites(id) ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;")
+	installer.CreateTable("picked_news", "CREATE TABLE `picked_news` ( `id` int(11) unsigned NOT NULL AUTO_INCREMENT, `title` varchar(255), `url` varchar(255) DEFAULT NULL,  PRIMARY KEY (`id`)) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;")
 }
