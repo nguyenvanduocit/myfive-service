@@ -20,7 +20,7 @@ func LoadConfig(filePath string) (*Config, error) {
 	data := &Config{
 		Address:       os.Getenv("ADDRESS"),
 		SlackToken:    os.Getenv("SLACK_TOKEN"),
-		CrawlInterval: 10 * time.Minute,
+		CrawlInterval: 60 * time.Minute,
 	}
 	return data, nil
 }
