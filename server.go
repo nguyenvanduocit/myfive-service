@@ -6,7 +6,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/http2"
-	"html/template"
 	"log"
 	"net/http"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/rss"
 	"github.com/nguyenvanduocit/myfive-crawler/interface"
 	"github.com/nguyenvanduocit/myfive-service/config"
-	"github.com/satori/go.uuid"
 	"time"
 )
 
@@ -29,11 +27,11 @@ type Post struct {
 }
 
 type Site struct {
-	ID      string `jsonapi:"primary,sites"`
+	ID      int    `jsonapi:"primary,sites"`
 	Title   string `jsonapi:"attr,title"`
 	Icon    string `jsonapi:"attr,icon"`
 	Url     string `jsonapi:"attr,url"`
-	FeedUrl string `jsonapi:"attr,feed_url,omitempty"`
+	FeedUrl string
 	Crawler string
 	Posts   []*Post `jsonapi:"relation,posts"`
 }
@@ -51,7 +49,7 @@ func NewServer(config *config.Config) *Server {
 				Title:   "A List Apart",
 				Icon:    "alistapart.com.svg",
 				Url:     "http://alistapart.com",
-				ID:      "http://alistapart.com",
+				ID:      0,
 				FeedUrl: "http://alistapart.com/main/feed",
 				Crawler: "rss",
 				Posts:   []*Post{},
@@ -60,7 +58,7 @@ func NewServer(config *config.Config) *Server {
 				Title:   "Toptal",
 				Icon:    "toptal.com.png",
 				Url:     "https://www.toptal.com",
-				ID:      "https://www.toptal.com",
+				ID:      1,
 				FeedUrl: "https://www.toptal.com/blog.rss",
 				Crawler: "rss",
 				Posts:   []*Post{},
@@ -68,16 +66,16 @@ func NewServer(config *config.Config) *Server {
 			{
 				Title:   "Smashing Magazine",
 				Url:     "https://www.smashingmagazine.com",
-				ID:      "https://www.smashingmagazine.com",
+				ID:      2,
 				FeedUrl: "https://www.smashingmagazine.com/feed/",
-				Icon:    "toptal.com.png",
+				Icon:    "smashingmagazine.com.png",
 				Crawler: "rss",
 				Posts:   []*Post{},
 			},
 			{
 				Title:   "David Walsh Blog",
 				Url:     "https://davidwalsh.name",
-				ID:      "https://davidwalsh.name",
+				ID:      3,
 				FeedUrl: "https://davidwalsh.name/feed",
 				Icon:    "davidwalsh.name.png",
 				Crawler: "rss",
@@ -86,7 +84,7 @@ func NewServer(config *config.Config) *Server {
 			{
 				Title:   "SitePoint",
 				Url:     "https://www.sitepoint.com",
-				ID:      "https://www.sitepoint.com",
+				ID:      4,
 				FeedUrl: "https://www.sitepoint.com/feed",
 				Icon:    "sitepoint.com.png",
 				Crawler: "rss",
@@ -94,7 +92,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "GitHub Trending",
-				ID:      "https://github.com/trending",
+				ID:      5,
 				Url:     "https://github.com/trending",
 				FeedUrl: "https://github.com/trending",
 				Icon:    "github.svg",
@@ -103,7 +101,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Echo JS",
-				ID:      "http://www.echojs.com",
+				ID:      6,
 				Url:     "http://www.echojs.com",
 				FeedUrl: "http://www.echojs.com/rss",
 				Icon:    "echojs.png",
@@ -112,7 +110,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Coding Horror",
-				ID:      "https://blog.codinghorror.com",
+				ID:      7,
 				Url:     "https://blog.codinghorror.com",
 				FeedUrl: "https://blog.codinghorror.com/rss/",
 				Icon:    "blog.codinghorror.com.png",
@@ -121,7 +119,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Envato Tuts+ Code",
-				ID:      "https://code.tutsplus.com",
+				ID:      8,
 				Url:     "https://code.tutsplus.com",
 				FeedUrl: "https://code.tutsplus.com/posts.atom",
 				Icon:    "tutsplus.com.png",
@@ -130,7 +128,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Codrops",
-				ID:      "http://tympanus.net/codrops",
+				ID:      9,
 				Url:     "http://tympanus.net/codrops",
 				FeedUrl: "http://tympanus.net/codrops/feed",
 				Icon:    "codrops.png",
@@ -139,7 +137,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "WordPress Tavern",
-				ID:      "https://wptavern.com",
+				ID:      10,
 				Url:     "https://wptavern.com",
 				FeedUrl: "https://wptavern.com/feed",
 				Icon:    "wptavern.com.png",
@@ -148,7 +146,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Product Hunt",
-				ID:      "https://producthunt.com",
+				ID:      11,
 				Url:     "https://producthunt.com",
 				FeedUrl: "https://posts.producthunt.com/posts/?filter=popular",
 				Icon:    "producthunt.com.png",
@@ -157,7 +155,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Hacker News",
-				ID:      "https://news.ycombinator.com",
+				ID:      12,
 				Url:     "https://news.ycombinator.com",
 				FeedUrl: "https://news.ycombinator.com/rss",
 				Icon:    "news.ycombinator.com.ico",
@@ -167,6 +165,7 @@ func NewServer(config *config.Config) *Server {
 			{
 				Title:   "CSS Trick",
 				Url:     "https://css-tricks.com/",
+				ID:      13,
 				FeedUrl: "http://feeds.feedburner.com/CssTricks?fmt=xml",
 				Icon:    "css-tricks.com.png",
 				Crawler: "rss",
@@ -174,7 +173,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Hacker Noon",
-				ID:      "https://hackernoon.com",
+				ID:      14,
 				Url:     "https://hackernoon.com",
 				FeedUrl: "https://hackernoon.com/feed",
 				Icon:    "hackernoon.com.jpeg",
@@ -183,7 +182,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Tech on Medium",
-				ID:      "https://medium.com/collections/d39cf943f634",
+				ID:      15,
 				Url:     "https://medium.com/collections/d39cf943f634",
 				FeedUrl: "https://medium.com/feed/collections/d39cf943f634",
 				Icon:    "medium.com.png",
@@ -192,7 +191,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "TutorialZine",
-				ID:      "http://tutorialzine.com",
+				ID:      16,
 				Url:     "http://tutorialzine.com",
 				FeedUrl: "http://tutorialzine.com/feed/",
 				Icon:    "tutorialzine.com.png",
@@ -201,7 +200,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Chromium Blog",
-				ID:      "https://blog.chromium.org",
+				ID:      17,
 				Url:     "https://blog.chromium.org",
 				FeedUrl: "https://blog.chromium.org/feeds/posts/default?alt=rss",
 				Icon:    "blog.chromium.org.png",
@@ -210,7 +209,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Top story on Medium",
-				ID:      "https://medium.com/browse/top",
+				ID:      18,
 				Url:     "https://medium.com/browse/top",
 				FeedUrl: "https://medium.com/feed/browse/top",
 				Icon:    "medium.com.png",
@@ -219,7 +218,7 @@ func NewServer(config *config.Config) *Server {
 			},
 			{
 				Title:   "Scotch.io",
-				ID:      "https://scotch.io",
+				ID:      19,
 				Url:     "https://scotch.io",
 				FeedUrl: "https://scotch.io/feed",
 				Icon:    "scotch.io.png",
@@ -227,8 +226,8 @@ func NewServer(config *config.Config) *Server {
 				Posts:   []*Post{},
 			},
 			{
-				Title:   "Alligator.io",
-				ID:      "https://alligator.io",
+				Title:   "Alligator",
+				ID:      20,
 				Url:     "https://alligator.io",
 				FeedUrl: "https://alligator.io/feed.xml",
 				Icon:    "alligator.io.png",
@@ -248,7 +247,7 @@ func (sv *Server) Start() {
 	ticker := time.NewTicker(sv.Config.CrawlInterval)
 	crawlChan := make(chan string)
 
-	go sv.Listing(listingChan)
+	go sv.Listening(listingChan)
 	go sv.Crawling(crawlChan)
 
 	for {
@@ -268,14 +267,12 @@ func (sv *Server) Start() {
 	}
 }
 
-func (sv *Server) Listing(listingChan chan error) {
+func (sv *Server) Listening(listingChan chan error) {
 
 	fmt.Println("Server is listen on ", sv.Config.Address)
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.HandleFunc("/api/v1/sites", sv.HandleGetSites) // Get all Sites and it's posts
-	router.HandleFunc("/", sv.Index)
-	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("view/static"))))
 	gzipWrapper := gziphandler.GzipHandler(router)
 
 	srv := &http.Server{
@@ -331,7 +328,7 @@ func (sv *Server) crawSite(site *Site, resultChan chan interface{}) {
 			break
 		}
 		site.Posts = append(site.Posts, &Post{
-			ID:    uuid.NewV4().String(),
+			ID:    fmt.Sprintf("%d-%d", site.ID, len(site.Posts)),
 			Title: item.Title,
 			Url:   item.Link,
 		})
@@ -340,21 +337,7 @@ func (sv *Server) crawSite(site *Site, resultChan chan interface{}) {
 	resultChan <- true
 }
 
-// Handle index request
-func (sv *Server) Index(w http.ResponseWriter, r *http.Request) {
-	templates, err := template.ParseFiles("./view/index.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-	err = templates.Execute(w, nil)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
 // Main function
-
 func main() {
 	// UP
 	configData, err := config.LoadConfig("./.env")

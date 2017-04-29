@@ -7,8 +7,8 @@ import (
 )
 
 type Config struct {
-	Address    string
-	SlackToken string
+	Address       string
+	SlackToken    string
 	CrawlInterval time.Duration
 }
 
@@ -17,10 +17,10 @@ func LoadConfig(filePath string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	config := &Config{
+	data := &Config{
 		Address:       os.Getenv("ADDRESS"),
 		SlackToken:    os.Getenv("SLACK_TOKEN"),
 		CrawlInterval: 10 * time.Minute,
 	}
-	return config, nil
+	return data, nil
 }
