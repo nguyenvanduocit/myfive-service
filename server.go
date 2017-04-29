@@ -136,15 +136,6 @@ func NewServer(config *config.Config) *Server {
 				Posts:   []*Post{},
 			},
 			{
-				Title:   "WordPress Tavern",
-				ID:      10,
-				Url:     "https://wptavern.com",
-				FeedUrl: "https://wptavern.com/feed",
-				Icon:    "wptavern.com.png",
-				Crawler: "rss",
-				Posts:   []*Post{},
-			},
-			{
 				Title:   "Product Hunt",
 				ID:      11,
 				Url:     "https://producthunt.com",
