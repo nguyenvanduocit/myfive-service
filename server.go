@@ -34,17 +34,31 @@ type Site struct {
 	FeedUrl string
 	Crawler string
 	Posts   []*Post `jsonapi:"relation,posts"`
+	LastUpdated time.Time
 }
 
 type Server struct {
 	Config *config.Config
 	Sites  []*Site
+	BatchSize int
+	CacheInterval time.Duration
 }
 
 func NewServer(config *config.Config) *Server {
 	return &Server{
-		Config: config,
+		Config:        config,
+		BatchSize:     5,
+		CacheInterval: 20 * time.Minute,
 		Sites: []*Site{
+			{
+				Title:   "Google Developers Blog",
+				Url:     "https://developers.googleblog.com/",
+				ID:      22,
+				FeedUrl: "https://www.blogger.com/feeds/596098824972435195/posts/default",
+				Icon:    "css-tricks.com.png",
+				Crawler: "rss",
+				Posts:   []*Post{},
+			},
 			{
 				Title:   "A List Apart",
 				Icon:    "alistapart.com.svg",
@@ -199,15 +213,6 @@ func NewServer(config *config.Config) *Server {
 				Posts:   []*Post{},
 			},
 			{
-				Title:   "Top story on Medium",
-				ID:      18,
-				Url:     "https://medium.com/browse/top",
-				FeedUrl: "https://medium.com/feed/browse/top",
-				Icon:    "medium.com.png",
-				Crawler: "rss",
-				Posts:   []*Post{},
-			},
-			{
 				Title:   "Scotch.io",
 				ID:      19,
 				Url:     "https://scotch.io",
@@ -224,6 +229,14 @@ func NewServer(config *config.Config) *Server {
 				Icon:    "alligator.io.png",
 				Crawler: "rss",
 				Posts:   []*Post{},
+			},{
+				Title:   "Vuejs feed",
+				ID:      21,
+				Url:     "https://vuejsfeed.com",
+				FeedUrl: "https://vuejsfeed.com/feed",
+				Icon:    "vuejsfeed.png",
+				Crawler: "rss",
+				Posts:   []*Post{},
 			},
 		},
 	}
@@ -236,19 +249,21 @@ func (sv *Server) Stop() {
 func (sv *Server) Start() {
 	listingChan := make(chan error)
 	ticker := time.NewTicker(sv.Config.CrawlInterval)
-	crawlChan := make(chan string)
-
+	crawlChan := make(chan bool)
+	previousDone := false
 	go sv.Listening(listingChan)
 	go sv.Crawling(crawlChan)
 
 	for {
 		select {
-		case t := <-ticker.C:
-			fmt.Println("Start crawling at: ", t)
-			go sv.Crawling(crawlChan)
+		case <-ticker.C:
+			if previousDone == true {
+				previousDone = false
+				go sv.Crawling(crawlChan)
+			}
 
 		case crawlResult := <-crawlChan:
-			fmt.Println(crawlResult)
+			previousDone = crawlResult
 
 		case listingResult := <-listingChan:
 			fmt.Println(listingResult)
@@ -280,17 +295,27 @@ func (sv *Server) HandleGetSites(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (sv *Server) Crawling(resultChan chan string) {
+func (sv *Server) Crawling(resultChan chan bool) {
+	timeNow := time.Now()
+	fmt.Printf("\n---| Start patch! at\t %s\n", timeNow)
 	siteChan := make(chan interface{})
 	chanCount := 0
 	for _, site := range sv.Sites {
-		chanCount++
-		go sv.crawSite(site, siteChan)
+		if site.LastUpdated.IsZero() || timeNow.Sub(site.LastUpdated) > sv.CacheInterval {
+			chanCount++
+			site.LastUpdated = timeNow
+			fmt.Printf("Start parse:\t %s at\t %s\n", site.Title, site.LastUpdated)
+			go sv.crawSite(site, siteChan)
+		}
+		if chanCount == sv.BatchSize {
+			break
+		}
 	}
 	for i := 0; i < chanCount; i++ {
-		<-siteChan
+		fmt.Printf("End parse:\t\t %s at\t %s\n", <-siteChan, time.Now())
 	}
-	resultChan <- "Crawl Done!"
+	fmt.Printf("---| End patch! at\t %s\n", time.Now())
+	resultChan <- true
 }
 
 func (sv *Server) crawSite(site *Site, resultChan chan interface{}) {
@@ -307,7 +332,6 @@ func (sv *Server) crawSite(site *Site, resultChan chan interface{}) {
 	case "oxfordlearnersdictionaries":
 		crawler = CrawlerInterface.Crawler(oxfordlearnersdictionaries.NewCrawler(site.FeedUrl))
 	}
-	fmt.Println("Start parse: ", crawler.GetIdentifyURL())
 	feed, err := crawler.Parse()
 	if err != nil {
 		resultChan <- err
@@ -324,8 +348,7 @@ func (sv *Server) crawSite(site *Site, resultChan chan interface{}) {
 			Url:   item.Link,
 		})
 	}
-	fmt.Println("End parse: ", crawler.GetIdentifyURL())
-	resultChan <- true
+	resultChan <- site.Title
 }
 
 // Main function
