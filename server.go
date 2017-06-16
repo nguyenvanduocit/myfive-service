@@ -51,15 +51,6 @@ func NewServer(config *config.Config) *Server {
 		CacheInterval: 20 * time.Minute,
 		Sites: []*Site{
 			{
-				Title:   "Google Developers Blog",
-				Url:     "https://developers.googleblog.com/",
-				ID:      22,
-				FeedUrl: "https://www.blogger.com/feeds/596098824972435195/posts/default",
-				Icon:    "css-tricks.com.png",
-				Crawler: "rss",
-				Posts:   []*Post{},
-			},
-			{
 				Title:   "A List Apart",
 				Icon:    "alistapart.com.svg",
 				Url:     "http://alistapart.com",
@@ -237,6 +228,22 @@ func NewServer(config *config.Config) *Server {
 				Icon:    "vuejsfeed.png",
 				Crawler: "rss",
 				Posts:   []*Post{},
+			},{
+				Title:   "Google Developers Blog",
+				Url:     "https://developers.googleblog.com/",
+				ID:      22,
+				FeedUrl: "https://www.blogger.com/feeds/596098824972435195/posts/default",
+				Icon:    "css-tricks.com.png",
+				Crawler: "rss",
+				Posts:   []*Post{},
+			},{
+				Title:   "Bitsofco",
+				ID:      23,
+				Url:     "https://bitsofco.de",
+				FeedUrl: "https://bitsofco.de/rss",
+				Icon:    "bitsofco.de.png",
+				Crawler: "rss",
+				Posts:   []*Post{},
 			},
 		},
 	}
@@ -301,13 +308,14 @@ func (sv *Server) Crawling(resultChan chan bool) {
 	siteChan := make(chan interface{})
 	chanCount := 0
 	for _, site := range sv.Sites {
-		if site.LastUpdated.IsZero() || timeNow.Sub(site.LastUpdated) > sv.CacheInterval {
+		isFirstTime := site.LastUpdated.IsZero()
+		if  isFirstTime || timeNow.Sub(site.LastUpdated) > sv.CacheInterval {
 			chanCount++
 			site.LastUpdated = timeNow
 			fmt.Printf("Start parse:\t %s at\t %s\n", site.Title, site.LastUpdated)
 			go sv.crawSite(site, siteChan)
 		}
-		if chanCount == sv.BatchSize {
+		if (chanCount == sv.BatchSize) && !isFirstTime {
 			break
 		}
 	}
