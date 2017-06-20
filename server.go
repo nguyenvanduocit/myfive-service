@@ -233,7 +233,7 @@ func NewServer(config *config.Config) *Server {
 				Url:     "https://developers.googleblog.com/",
 				ID:      22,
 				FeedUrl: "https://www.blogger.com/feeds/596098824972435195/posts/default",
-				Icon:    "css-tricks.com.png",
+				Icon:    "developers.googleblog.com.jpg",
 				Crawler: "rss",
 				Posts:   []*Post{},
 			},{
