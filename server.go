@@ -140,7 +140,7 @@ func NewServer(config *config.Config) *Server {
 				Crawler: "rss",
 				Posts:   []*Post{},
 			},
-			{
+			/*{
 				Title:   "Product Hunt",
 				ID:      11,
 				Url:     "https://producthunt.com",
@@ -148,7 +148,7 @@ func NewServer(config *config.Config) *Server {
 				Icon:    "producthunt.com.png",
 				Crawler: "producthunt",
 				Posts:   []*Post{},
-			},
+			},*/
 			{
 				Title:   "Hacker News",
 				ID:      12,
@@ -185,7 +185,7 @@ func NewServer(config *config.Config) *Server {
 				Crawler: "rss",
 				Posts:   []*Post{},
 			},
-			{
+			/*{
 				Title:   "TutorialZine",
 				ID:      16,
 				Url:     "http://tutorialzine.com",
@@ -193,7 +193,7 @@ func NewServer(config *config.Config) *Server {
 				Icon:    "tutorialzine.com.png",
 				Crawler: "rss",
 				Posts:   []*Post{},
-			},
+			},*/
 			{
 				Title:   "Chromium Blog",
 				ID:      17,
