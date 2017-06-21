@@ -177,10 +177,10 @@ func NewServer(config *config.Config) *Server {
 				Posts:   []*Post{},
 			},
 			{
-				Title:   "Tech on Medium",
+				Title:   "freeCodeCamp",
 				ID:      15,
-				Url:     "https://medium.com/collections/d39cf943f634",
-				FeedUrl: "https://medium.com/feed/collections/d39cf943f634",
+				Url:     "https://medium.freecodecamp.com",
+				FeedUrl: "https://medium.freecodecamp.com/feed",
 				Icon:    "medium.com.png",
 				Crawler: "rss",
 				Posts:   []*Post{},
