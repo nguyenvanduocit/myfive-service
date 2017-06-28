@@ -18,6 +18,7 @@ import (
 	"github.com/nguyenvanduocit/myfive-crawler/interface"
 	"github.com/nguyenvanduocit/myfive-service/config"
 	"time"
+	"github.com/rs/cors"
 )
 
 type Post struct {
@@ -284,9 +285,11 @@ func (sv *Server) Listening(listingChan chan error) {
 
 	fmt.Println("Server is listen on ", sv.Config.Address)
 	router := mux.NewRouter().StrictSlash(true)
-
+	corsMiddleWare := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+	})
 	router.HandleFunc("/api/v1/sites", sv.HandleGetSites) // Get all Sites and it's posts
-	gzipWrapper := gziphandler.GzipHandler(router)
+	gzipWrapper := gziphandler.GzipHandler(corsMiddleWare.Handler(router))
 
 	srv := &http.Server{
 		Addr:    sv.Config.Address,
