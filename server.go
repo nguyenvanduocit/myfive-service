@@ -3,12 +3,11 @@ package main
 import (
 	"fmt"
 	"github.com/NYTimes/gziphandler"
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/http2"
 	"log"
 	"net/http"
-
+	"encoding/json"
 	"github.com/google/jsonapi"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/github"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/medium"
@@ -19,22 +18,23 @@ import (
 	"github.com/nguyenvanduocit/myfive-service/config"
 	"time"
 	"github.com/rs/cors"
+	"github.com/graphql-go/graphql"
 )
 
 type Post struct {
-	ID    string `jsonapi:"primary,news"`
-	Title string `jsonapi:"attr,title"`
-	Url   string `jsonapi:"attr,url"`
+	ID    int `json:"id" jsonapi:"primary,news"`
+	Title string `json:"title" jsonapi:"attr,title"`
+	Url   string `json:"url" jsonapi:"attr,url"`
 }
 
 type Site struct {
-	ID      int    `jsonapi:"primary,sites"`
-	Title   string `jsonapi:"attr,title"`
-	Icon    string `jsonapi:"attr,icon"`
-	Url     string `jsonapi:"attr,url"`
+	ID      int    `json:"id" jsonapi:"primary,sites"`
+	Title   string `json:"title" jsonapi:"attr,title"`
+	Icon    string `json:"icon" jsonapi:"attr,icon"`
+	Url     string `json:"url" jsonapi:"attr,url"`
 	FeedUrl string
 	Crawler string
-	Posts   []*Post `jsonapi:"relation,posts"`
+	Posts   []*Post `json:"posts" jsonapi:"relation,posts"`
 	LastUpdated time.Time
 }
 
@@ -141,15 +141,6 @@ func NewServer(config *config.Config) *Server {
 				Crawler: "rss",
 				Posts:   []*Post{},
 			},
-			/*{
-				Title:   "Product Hunt",
-				ID:      11,
-				Url:     "https://producthunt.com",
-				FeedUrl: "https://posts.producthunt.com/posts/?filter=popular",
-				Icon:    "producthunt.com.png",
-				Crawler: "producthunt",
-				Posts:   []*Post{},
-			},*/
 			{
 				Title:   "Hacker News",
 				ID:      12,
@@ -186,15 +177,6 @@ func NewServer(config *config.Config) *Server {
 				Crawler: "rss",
 				Posts:   []*Post{},
 			},
-			/*{
-				Title:   "TutorialZine",
-				ID:      16,
-				Url:     "http://tutorialzine.com",
-				FeedUrl: "http://tutorialzine.com/feed/",
-				Icon:    "tutorialzine.com.png",
-				Crawler: "rss",
-				Posts:   []*Post{},
-			},*/
 			{
 				Title:   "Chromium Blog",
 				ID:      17,
@@ -270,8 +252,8 @@ func (sv *Server) Start() {
 				go sv.Crawling(crawlChan)
 			}
 
-		case crawlResult := <-crawlChan:
-			previousDone = crawlResult
+		case <-crawlChan:
+			previousDone = true
 
 		case listingResult := <-listingChan:
 			fmt.Println(listingResult)
@@ -282,13 +264,95 @@ func (sv *Server) Start() {
 }
 
 func (sv *Server) Listening(listingChan chan error) {
-
 	fmt.Println("Server is listen on ", sv.Config.Address)
 	router := mux.NewRouter().StrictSlash(true)
 	corsMiddleWare := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
 	})
 	router.HandleFunc("/api/v1/sites", sv.HandleGetSites) // Get all Sites and it's posts
+
+	// Graph ql
+	newsType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "Post",
+		Fields: graphql.Fields{
+			"id": &graphql.Field{
+				Type: graphql.Int,
+			},
+			"title": &graphql.Field{
+				Type: graphql.String,
+			},
+			"url": &graphql.Field{
+				Type: graphql.String,
+			},
+		},
+	})
+
+	// Graph QL
+	siteType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "Site",
+		Fields: graphql.Fields{
+			"id": &graphql.Field{
+				Type: graphql.Int,
+			},
+			"title": &graphql.Field{
+				Type: graphql.String,
+			},
+			"icon": &graphql.Field{
+				Type: graphql.String,
+			},
+			"url": &graphql.Field{
+				Type: graphql.String,
+			},
+			"posts": &graphql.Field{
+				Type: graphql.NewList(newsType),
+			},
+		},
+	})
+
+	rootQuery := graphql.NewObject(graphql.ObjectConfig{
+		Name: "RootQuery",
+		Fields: graphql.Fields{
+			"site": &graphql.Field{
+				Type:        siteType,
+				Description: "Get single site",
+				Args: graphql.FieldConfigArgument{
+					"id": &graphql.ArgumentConfig{
+						Type: graphql.Int,
+					},
+				},
+				Resolve: func(params graphql.ResolveParams) (interface{}, error) {
+					idQuery, isOK := params.Args["id"].(int)
+					if isOK {
+						for _, site := range sv.Sites {
+							if site.ID == idQuery {
+								return site, nil
+							}
+						}
+					}
+
+					return Site{}, nil
+				},
+			},
+			"siteList": &graphql.Field{
+				Type:        graphql.NewList(siteType),
+				Description: "List of sites",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return sv.Sites, nil
+				},
+			},
+		},
+	})
+
+	// define schema, with our rootQuery and rootMutation
+	schema, _ := graphql.NewSchema(graphql.SchemaConfig{
+		Query:    rootQuery,
+	})
+	router.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		result := sv.executeQuery(r.URL.Query().Get("query"), schema)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	})
+
 	gzipWrapper := gziphandler.GzipHandler(corsMiddleWare.Handler(router))
 
 	srv := &http.Server{
@@ -299,7 +363,19 @@ func (sv *Server) Listening(listingChan chan error) {
 	listingChan <- srv.ListenAndServe()
 }
 
+func (sv *Server)executeQuery(query string, schema graphql.Schema) *graphql.Result {
+	result := graphql.Do(graphql.Params{
+		Schema:        schema,
+		RequestString: query,
+	})
+	if len(result.Errors) > 0 {
+		fmt.Printf("wrong result, unexpected errors: %v", result.Errors)
+	}
+	return result
+}
+
 func (sv *Server) HandleGetSites(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	if err := jsonapi.MarshalManyPayload(w, sv.Sites); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -307,7 +383,7 @@ func (sv *Server) HandleGetSites(w http.ResponseWriter, r *http.Request) {
 
 func (sv *Server) Crawling(resultChan chan bool) {
 	timeNow := time.Now()
-	fmt.Printf("\n---| Start patch! at\t %s\n", timeNow)
+	fmt.Printf("\n---| %s \t Start patch!\n", timeNow)
 	siteChan := make(chan interface{})
 	chanCount := 0
 	for _, site := range sv.Sites {
@@ -315,7 +391,7 @@ func (sv *Server) Crawling(resultChan chan bool) {
 		if  isFirstTime || timeNow.Sub(site.LastUpdated) > sv.CacheInterval {
 			chanCount++
 			site.LastUpdated = timeNow
-			fmt.Printf("Start parse:\t %s at\t %s\n", site.Title, site.LastUpdated)
+			fmt.Printf("%s \t Start parse:\t %s\n", site.LastUpdated, site.Title)
 			go sv.crawSite(site, siteChan)
 		}
 		if (chanCount == sv.BatchSize) && !isFirstTime {
@@ -323,9 +399,9 @@ func (sv *Server) Crawling(resultChan chan bool) {
 		}
 	}
 	for i := 0; i < chanCount; i++ {
-		fmt.Printf("End parse:\t\t %s at\t %s\n", <-siteChan, time.Now())
+		fmt.Printf("%s \t End parse:\t\t %s\n", time.Now(), <-siteChan)
 	}
-	fmt.Printf("---| End patch! at\t %s\n", time.Now())
+	fmt.Printf("---| %s \t End patch!\n", time.Now())
 	resultChan <- true
 }
 
@@ -354,7 +430,7 @@ func (sv *Server) crawSite(site *Site, resultChan chan interface{}) {
 			break
 		}
 		site.Posts = append(site.Posts, &Post{
-			ID:    fmt.Sprintf("%d-%d", site.ID, len(site.Posts)),
+			ID:    len(site.Posts),
 			Title: item.Title,
 			Url:   item.Link,
 		})
