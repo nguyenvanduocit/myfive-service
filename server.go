@@ -22,7 +22,7 @@ import (
 )
 
 type Post struct {
-	ID    int `json:"id" jsonapi:"primary,news"`
+	ID    string `json:"id" jsonapi:"primary,news"`
 	Title string `json:"title" jsonapi:"attr,title"`
 	Url   string `json:"url" jsonapi:"attr,url"`
 }
@@ -276,7 +276,7 @@ func (sv *Server) Listening(listingChan chan error) {
 		Name: "Post",
 		Fields: graphql.Fields{
 			"id": &graphql.Field{
-				Type: graphql.Int,
+				Type: graphql.String,
 			},
 			"title": &graphql.Field{
 				Type: graphql.String,
@@ -430,7 +430,7 @@ func (sv *Server) crawSite(site *Site, resultChan chan interface{}) {
 			break
 		}
 		site.Posts = append(site.Posts, &Post{
-			ID:    len(site.Posts),
+			ID:    fmt.Sprintf("%d-%d", site.ID, len(site.Posts)),
 			Title: item.Title,
 			Url:   item.Link,
 		})
