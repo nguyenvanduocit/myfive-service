@@ -7,7 +7,6 @@ import (
 	"golang.org/x/net/http2"
 	"log"
 	"net/http"
-	"encoding/json"
 	"github.com/google/jsonapi"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/github"
 	"github.com/nguyenvanduocit/myfive-crawler/crawler/medium"
@@ -18,7 +17,8 @@ import (
 	"github.com/nguyenvanduocit/myfive-service/config"
 	"time"
 	"github.com/rs/cors"
-	"github.com/graphql-go/graphql"
+	"github.com/graphql-go/handler"
+	"github.com/nguyenvanduocit/myfive-service/schema"
 )
 
 type Post struct {
@@ -204,14 +204,6 @@ func NewServer(config *config.Config) *Server {
 				Crawler: "rss",
 				Posts:   []*Post{},
 			},{
-				Title:   "Vuejs feed",
-				ID:      21,
-				Url:     "https://vuejsfeed.com",
-				FeedUrl: "https://vuejsfeed.com/feed",
-				Icon:    "vuejsfeed.png",
-				Crawler: "rss",
-				Posts:   []*Post{},
-			},{
 				Title:   "Google Developers Blog",
 				Url:     "https://developers.googleblog.com/",
 				ID:      22,
@@ -263,6 +255,15 @@ func (sv *Server) Start() {
 	}
 }
 
+func (sv *Server) getSites (id int) *Site {
+	for _, site := range sv.Sites {
+		if site.ID == id {
+			return site
+		}
+	}
+	return nil
+}
+
 func (sv *Server) Listening(listingChan chan error) {
 	fmt.Println("Server is listen on ", sv.Config.Address)
 	router := mux.NewRouter().StrictSlash(true)
@@ -271,87 +272,11 @@ func (sv *Server) Listening(listingChan chan error) {
 	})
 	router.HandleFunc("/api/v1/sites", sv.HandleGetSites) // Get all Sites and it's posts
 
-	// Graph ql
-	newsType := graphql.NewObject(graphql.ObjectConfig{
-		Name: "Post",
-		Fields: graphql.Fields{
-			"id": &graphql.Field{
-				Type: graphql.String,
-			},
-			"title": &graphql.Field{
-				Type: graphql.String,
-			},
-			"url": &graphql.Field{
-				Type: graphql.String,
-			},
-		},
+	graphqlHandler := handler.New(&handler.Config{
+		Schema: &schema.Schema,
+		Pretty: true,
 	})
-
-	// Graph QL
-	siteType := graphql.NewObject(graphql.ObjectConfig{
-		Name: "Site",
-		Fields: graphql.Fields{
-			"id": &graphql.Field{
-				Type: graphql.Int,
-			},
-			"title": &graphql.Field{
-				Type: graphql.String,
-			},
-			"icon": &graphql.Field{
-				Type: graphql.String,
-			},
-			"url": &graphql.Field{
-				Type: graphql.String,
-			},
-			"posts": &graphql.Field{
-				Type: graphql.NewList(newsType),
-			},
-		},
-	})
-
-	rootQuery := graphql.NewObject(graphql.ObjectConfig{
-		Name: "RootQuery",
-		Fields: graphql.Fields{
-			"site": &graphql.Field{
-				Type:        siteType,
-				Description: "Get single site",
-				Args: graphql.FieldConfigArgument{
-					"id": &graphql.ArgumentConfig{
-						Type: graphql.Int,
-					},
-				},
-				Resolve: func(params graphql.ResolveParams) (interface{}, error) {
-					idQuery, isOK := params.Args["id"].(int)
-					if isOK {
-						for _, site := range sv.Sites {
-							if site.ID == idQuery {
-								return site, nil
-							}
-						}
-					}
-
-					return Site{}, nil
-				},
-			},
-			"siteList": &graphql.Field{
-				Type:        graphql.NewList(siteType),
-				Description: "List of sites",
-				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-					return sv.Sites, nil
-				},
-			},
-		},
-	})
-
-	// define schema, with our rootQuery and rootMutation
-	schema, _ := graphql.NewSchema(graphql.SchemaConfig{
-		Query:    rootQuery,
-	})
-	router.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
-		result := sv.executeQuery(r.URL.Query().Get("query"), schema)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
-	})
+	router.Handle("/graphql", graphqlHandler)
 
 	gzipWrapper := gziphandler.GzipHandler(corsMiddleWare.Handler(router))
 
@@ -361,17 +286,6 @@ func (sv *Server) Listening(listingChan chan error) {
 	}
 	http2.ConfigureServer(srv, nil)
 	listingChan <- srv.ListenAndServe()
-}
-
-func (sv *Server)executeQuery(query string, schema graphql.Schema) *graphql.Result {
-	result := graphql.Do(graphql.Params{
-		Schema:        schema,
-		RequestString: query,
-	})
-	if len(result.Errors) > 0 {
-		fmt.Printf("wrong result, unexpected errors: %v", result.Errors)
-	}
-	return result
 }
 
 func (sv *Server) HandleGetSites(w http.ResponseWriter, r *http.Request) {
